@@ -22,10 +22,16 @@ contract DogsNFT is ERC721, ERC721Enumerable, ERC721URIStorage, ERC721Pausable, 
         _unpause();
     }
 
+    function mint(address to) public onlyOwner returns (uint256) {
+        _nextTokenId++;
+        _mint(to, _nextTokenId);
+        return _nextTokenId;
+    }
+
     function safeMint(address to, string memory uri) public onlyOwner {
-        uint256 tokenId = _nextTokenId++;
-        _safeMint(to, tokenId);
-        _setTokenURI(tokenId, uri);
+        _nextTokenId++;
+        _safeMint(to, _nextTokenId);
+        _setTokenURI(_nextTokenId, uri);
     }
 
     // The following functions are overrides required by Solidity.

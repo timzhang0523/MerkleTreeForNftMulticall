@@ -25,7 +25,7 @@ contract AirdropMerkleNFTMarketTest is Test {
     Account feeTo = makeAccount("feeTo");
 
     string internal url = "https://sepolia.etherscan.io/assets/svg/logos/logo-etherscan-light.svg?v=0.0.5";
-    uint256 tokenId = 0;
+    uint256 tokenId = 1;
     uint256 price = 1e18;
     uint256 deadline = block.timestamp + 1000;
     bytes32 orderId;
@@ -35,7 +35,7 @@ contract AirdropMerkleNFTMarketTest is Test {
 
     struct User {
         address addr;
-        uint256 amount;
+        uint256 tokenId;
     }
 
     User[] public users;
@@ -45,14 +45,16 @@ contract AirdropMerkleNFTMarketTest is Test {
         Merkle m = new Merkle();
 
         // 初始化用户数据
-        users.push(User(alice.addr, 0));
-        users.push(User(0xb7D15753D3F76e7C892B63db6b4729f700C01298, 15));
-        users.push(User(0xf69Ca530Cd4849e3d1329FBEC06787a96a3f9A68, 20));
-        users.push(User(0xa8532aAa27E9f7c3a96d754674c99F1E2f824800, 30));
+        users.push(User(alice.addr, 1));
+        users.push(User(0xb7D15753D3F76e7C892B63db6b4729f700C01298, 2));
+        // users.push(User(0xf69Ca530Cd4849e3d1329FBEC06787a96a3f9A68, 20));
+        // users.push(User(0xa8532aAa27E9f7c3a96d754674c99F1E2f824800, 30));
 
         // 计算哈希值
         computeElements();
         hashData = getElements();
+        console2.log("hashData:");
+        console.logBytes32(hashData[0]);
         // Get Root, Proof, and Verify
         bytes32 murkyGeneratedRoot = m.getRoot(hashData);
         console2.log("Merkle Root:");
@@ -66,20 +68,20 @@ contract AirdropMerkleNFTMarketTest is Test {
         bool verified = m.verifyProof(murkyGeneratedRoot, merkleProof, hashData[0]); // true!
         assertTrue(verified);
 
-        token = new EtherealToken(owner.addr);
-        nft = new CelestialNFT(owner.addr);
-        market = new AirdopMerkleNFTMarket(murkyGeneratedRoot);
-        sigUtils = new SigUtils(token.DOMAIN_SEPARATOR());
+        token = new DogsToken(owner.addr);
+        nft = new DogsNFT(owner.addr);
+        market = new AirdropMerkleNFTMarket(murkyGeneratedRoot);
+        sigUtils = new EIP712Sig(token.DOMAIN_SEPARATOR());
 
         vm.startPrank(owner.addr);
         token.mint(owner.addr, 100 * 10 ** 18);
 
         nft.safeMint(owner.addr, url);
-
+        // nft.mint(owner.addr);
         vm.stopPrank();
     }
 
-    function testMint() public {
+    function testDogsMint() public {
         vm.startPrank(owner.addr); // 0x2
         token.mint(alice.addr, 100 * 10 ** 18);
         token.balanceOf(alice.addr);
@@ -93,7 +95,7 @@ contract AirdropMerkleNFTMarketTest is Test {
 
     function testNFTBalance() public view {
         assertEq(nft.balanceOf(owner.addr), 1, "owner nft balance is not 1");
-        assertEq(nft.ownerOf(0), owner.addr, "owner nft is not owner");
+        assertEq(nft.ownerOf(tokenId), owner.addr, "owner nft is not owner");
     }
 
     function testListNFT() public {
@@ -103,12 +105,12 @@ contract AirdropMerkleNFTMarketTest is Test {
 
         // Check emitted event
         // vm.expectEmit(true, true, false, false);
-        // emit AirdopMerkleNFTMarket.List(address(nft), tokenId, orderId, owner.addr, address(token), price, deadline);
-        // emit AirdopMerkleNFTMarket.List(address(nft), tokenId, orderId, owner.addr, address(token), price, deadline);
+        // emit AirdropMerkleNFTMarket.List(address(nft), tokenId, orderId, owner.addr, address(token), price, deadline);
+        // emit AirdropMerkleNFTMarket.List(address(nft), tokenId, orderId, owner.addr, address(token), price, deadline);
         market.list(address(nft), tokenId, address(token), price, deadline);
 
         // Compute expected orderId
-        AirdopMerkleNFTMarket.SellOrder memory order = AirdopMerkleNFTMarket.SellOrder({
+        AirdropMerkleNFTMarket.SellOrder memory order = AirdropMerkleNFTMarket.SellOrder({
             seller: owner.addr,
             nft: address(nft),
             tokenId: tokenId,
@@ -123,7 +125,7 @@ contract AirdropMerkleNFTMarketTest is Test {
         console.log("orderId: ");
         console.logBytes32(orderId);
         // Check listingOrders mapping
-        AirdopMerkleNFTMarket.SellOrder memory listedOrder = market.getListingOrders(orderId);
+        AirdropMerkleNFTMarket.SellOrder memory listedOrder = market.getListingOrders(orderId);
         assertEq(listedOrder.seller, owner.addr);
         assertEq(listedOrder.nft, address(nft));
         assertEq(listedOrder.tokenId, tokenId);
@@ -223,7 +225,7 @@ contract AirdropMerkleNFTMarketTest is Test {
         delete elements; // 清空之前的元素
 
         for (uint256 i = 0; i < users.length; i++) {
-            bytes32 element = keccak256(abi.encodePacked(users[i].addr, users[i].amount));
+            bytes32 element = keccak256(abi.encodePacked(users[i].addr, users[i].tokenId));
             elements.push(element);
         }
     }
@@ -233,7 +235,7 @@ contract AirdropMerkleNFTMarketTest is Test {
     }
 
     function _getEIP2612Signature() private view returns (bytes memory) {
-        SigUtils.Permit memory permit = SigUtils.Permit({
+        EIP712Sig.Permit memory permit = EIP712Sig.Permit({
             owner: alice.addr,
             spender: address(market),
             value: price,
@@ -249,8 +251,8 @@ contract AirdropMerkleNFTMarketTest is Test {
     }
 
     function test_Permit() public {
-        SigUtils.Permit memory permit =
-            SigUtils.Permit({owner: owner.addr, spender: alice.addr, value: 1e18, nonce: 0, deadline: 1 days});
+        EIP712Sig.Permit memory permit =
+            EIP712Sig.Permit({owner: owner.addr, spender: alice.addr, value: 1e18, nonce: 0, deadline: 1 days});
 
         bytes32 digest = sigUtils.getTypedDataHash(permit);
 
